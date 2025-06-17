@@ -6,8 +6,12 @@ export default class Game extends Phaser.Scene {
     }
 
     preload() {
-        this.load.tilemapTiledJSON('mapa', 'public/assets/tilemap/mapa.json');
-        this.load.image('assets', 'public/assets/Assets.png');
+        this.load.tilemapTiledJSON('mapa', 'public/assets/tilemap/mapaCap.json');
+
+        // Cargar cada tileset con su nombre y archivo correspondiente
+        this.load.image('assets', 'public/assets/Assets.png'); // plataformas
+        this.load.image('Background_1', 'public/assets/Background_1.png'); // nubes
+        this.load.image('Background_2', 'public/assets/Background_2.png'); // cielo
 
         this.load.spritesheet('player', 'public/assets/Player.png', {
             frameWidth: 24,
@@ -19,21 +23,26 @@ export default class Game extends Phaser.Scene {
 
     create() {
         const map = this.make.tilemap({ key: 'mapa' });
-        const tileset = map.addTilesetImage('Assets', 'assets');
 
-        // Orden correcto de capas (fondo -> plataformas -> objetos)
-        map.createLayer('cielo', tileset, 0, 0);
-        map.createLayer('nubes', tileset, 0, 0);
-        const platformLayer = map.createLayer('plataformas', tileset, 0, 0);
+        // Cargar tilesets individualmente con el mismo nombre que usaste en Tiled
+        const tilesetAssets = map.addTilesetImage('Assets', 'assets');
+        const tilesetNubes = map.addTilesetImage('Background_1', 'Background_1');
+        const tilesetCielo = map.addTilesetImage('Background_2', 'Background_2');
+
+        // Crear capas usando sus tilesets correspondientes
+        map.createLayer('cielo', tilesetCielo, 0, 0);
+        map.createLayer('nubes', tilesetNubes, 0, 0);
+        const platformLayer = map.createLayer('plataformas', tilesetAssets, 0, 0);
 
         platformLayer.setCollisionByProperty({ colision: true });
 
+        // Crear jugador en su posición de spawn
         const spawnPoint = map.findObject('objetos', obj => obj.name === 'jugador');
         this.player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, 'player').setScale(1.5);
         this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, platformLayer);
 
-        // Alfajores
+        // Crear grupo para alfajores y colocar cada uno según el objeto en Tiled
         this.alfajores = this.physics.add.group();
         map.getObjectLayer('objetos').objects.forEach(obj => {
             if (obj.name === 'alfajor') {
@@ -46,14 +55,13 @@ export default class Game extends Phaser.Scene {
 
         this.physics.add.overlap(this.player, this.alfajores, this.collectAlfajor, null, this);
 
-        // Animación del jugador
+        // Animación jugador
         this.anims.create({
             key: 'run',
             frames: this.anims.generateFrameNumbers('player', { start: 0, end: 5 }),
             frameRate: 10,
             repeat: -1
         });
-
         this.player.anims.play('run', true);
         this.player.setVelocityX(120);
 
@@ -63,16 +71,19 @@ export default class Game extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
         this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-        // Entrada de salto
+        // Input para salto
         this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-        // UI
-        /*this.score = 0;
+        // Inicializar puntaje y texto para mostrarlo en pantalla
+        this.score = 0;
         this.scoreText = this.add.text(16, 16, 'Alfajores: 0', {
-            fontSize: '14px',
+            fontSize: '18px',
             fill: '#fff',
             fontFamily: 'monospace'
-        }).setScrollFactor(0).setDepth(20); // asegurarse que quede arriba de todo*/
+        }).setScrollFactor(0).setDepth(100);
+
+        // Fondo de cámara (por si falla algo)
+        this.cameras.main.setBackgroundColor('#87CEEB');
     }
 
     collectAlfajor(player, alfajor) {
