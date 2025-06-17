@@ -1,4 +1,4 @@
-import Game from "./scenes/Game.js";
+import Game from './scenes/Game.js';
 
 // Create a new Phaser config object
 const config = {
@@ -20,7 +20,7 @@ const config = {
   physics: {
     default: "arcade",
     arcade: {
-      gravity: { y: 200 },
+      gravity: { y: 700 },
       debug: true,
     },
   },

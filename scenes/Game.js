@@ -1,158 +1,93 @@
 // URL to explain PHASER scene: https://rexrainbow.github.io/phaser3-rex-notes/docs/site/scene/
 
 export default class Game extends Phaser.Scene {
-  constructor() {
-    super("game");
-  }
+    constructor() {
+        super({ key: 'Game' });
+    }
 
-  init() {
-    this.score = 0;
-  }
+    preload() {
+        this.load.tilemapTiledJSON('mapa', 'public/assets/tilemap/mapa.json');
+        this.load.image('assets', 'public/assets/Assets.png');
 
-  preload() {
-    this.load.tilemapTiledJSON("map", "public/assets/tilemap/map.json");
-    this.load.image("tileset", "public/assets/texture.png");
-    this.load.image("star", "public/assets/star.png");
+        this.load.spritesheet('player', 'public/assets/Player.png', {
+            frameWidth: 24,
+            frameHeight: 24
+        });
 
-    this.load.spritesheet("dude", "./public/assets/dude.png", {
-      frameWidth: 32,
-      frameHeight: 48,
-    });
-  }
+        this.load.image('alfajor', 'public/assets/item.png');
+    }
 
-  create() {
-    const map = this.make.tilemap({ key: "map" });
+    create() {
+        const map = this.make.tilemap({ key: 'mapa' });
+        const tileset = map.addTilesetImage('Assets', 'assets');
 
-    // Parameters are the name you gave the tileset in Tiled and then the key of the tileset image in
-    // Phaser's cache (i.e. the name you used in preload)
-    const tileset = map.addTilesetImage("tileset", "tileset");
+        // Orden correcto de capas (fondo -> plataformas -> objetos)
+        map.createLayer('cielo', tileset, 0, 0);
+        map.createLayer('nubes', tileset, 0, 0);
+        const platformLayer = map.createLayer('plataformas', tileset, 0, 0);
 
-    // Parameters: layer name (or index) from Tiled, tileset, x, y
-    const belowLayer = map.createLayer("Fondo", tileset, 0, 0);
-    const platformLayer = map.createLayer("Plataformas", tileset, 0, 0);
-    const objectsLayer = map.getObjectLayer("Objetos");
+        platformLayer.setCollisionByProperty({ colision: true });
 
-    // Find in the Object Layer, the name "dude" and get position
-    const spawnPoint = map.findObject(
-      "Objetos",
-      (obj) => obj.name === "player"
-    );
-    console.log("spawnPoint", spawnPoint);
+        const spawnPoint = map.findObject('objetos', obj => obj.name === 'jugador');
+        this.player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, 'player').setScale(1.5);
+        this.player.setCollideWorldBounds(true);
+        this.physics.add.collider(this.player, platformLayer);
 
-    this.player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, "dude");
+        // Alfajores
+        this.alfajores = this.physics.add.group();
+        map.getObjectLayer('objetos').objects.forEach(obj => {
+            if (obj.name === 'alfajor') {
+                const item = this.alfajores.create(obj.x, obj.y - 16, 'alfajor');
+                item.setOrigin(0);
+                item.setImmovable(true);
+                item.body.allowGravity = false;
+            }
+        });
 
-    this.player.setBounce(0.2);
-    this.player.setCollideWorldBounds(true);
+        this.physics.add.overlap(this.player, this.alfajores, this.collectAlfajor, null, this);
 
-    this.anims.create({
-      key: "left",
-      frames: this.anims.generateFrameNumbers("dude", { start: 0, end: 3 }),
-      frameRate: 10,
-      repeat: -1,
-    });
+        // Animación del jugador
+        this.anims.create({
+            key: 'run',
+            frames: this.anims.generateFrameNumbers('player', { start: 0, end: 5 }),
+            frameRate: 10,
+            repeat: -1
+        });
 
-    this.anims.create({
-      key: "turn",
-      frames: [{ key: "dude", frame: 4 }],
-      frameRate: 20,
-    });
+        this.player.anims.play('run', true);
+        this.player.setVelocityX(120);
 
-    this.anims.create({
-      key: "right",
-      frames: this.anims.generateFrameNumbers("dude", { start: 5, end: 8 }),
-      frameRate: 10,
-      repeat: -1,
-    });
+        // Cámara
+        this.cameras.main.startFollow(this.player);
+        this.cameras.main.setZoom(2);
+        this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+        this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+        // Entrada de salto
+        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    platformLayer.setCollisionByProperty({ esColisionable: true });
-    this.physics.add.collider(this.player, platformLayer);
+        // UI
+        /*this.score = 0;
+        this.scoreText = this.add.text(16, 16, 'Alfajores: 0', {
+            fontSize: '14px',
+            fill: '#fff',
+            fontFamily: 'monospace'
+        }).setScrollFactor(0).setDepth(20); // asegurarse que quede arriba de todo*/
+    }
 
-    // tiles marked as colliding
-    /*
-    const debugGraphics = this.add.graphics().setAlpha(0.75);
-    platformLayer.renderDebug(debugGraphics, {
-      tileColor: null, // Color of non-colliding tiles
-      collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
-      faceColor: new Phaser.Display.Color(40, 39, 37, 255), // Color of colliding face edges
-    });
-    */
+    collectAlfajor(player, alfajor) {
+        alfajor.disableBody(true, true);
+        this.score++;
+        this.scoreText.setText(`Alfajores: ${this.score}`);
+    }
 
-    // Create empty group of starts
-    this.stars = this.physics.add.group();
+    update() {
+        if (!this.player) return;
 
-    // find object layer
-    // if type is "stars", add to stars group
-    objectsLayer.objects.forEach((objData) => {
-      console.log(objData);
-      const { x = 0, y = 0, name, type } = objData;
-      switch (type) {
-        case "star": {
-          // add star to scene
-          // console.log("estrella agregada: ", x, y);
-          const star = this.stars.create(x, y, "star");
-          star.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
-          break;
+        this.player.setVelocityX(120);
+
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && this.player.body.blocked.down) {
+            this.player.setVelocityY(-300);
         }
-      }
-    });
-
-    // add collision between player and stars
-    this.physics.add.collider(
-      this.player,
-      this.stars,
-      this.collectStar,
-      null,
-      this
-    );
-    // add overlap between stars and platform layer
-    this.physics.add.collider(this.stars, platformLayer);
-
-    this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
-      fontSize: "32px",
-      fill: "#000",
-    });
-  }
-
-  update() {
-    // update game objects
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-160);
-
-      this.player.anims.play("left", true);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(160);
-
-      this.player.anims.play("right", true);
-    } else {
-      this.player.setVelocityX(0);
-
-      this.player.anims.play("turn");
     }
-
-    if (this.cursors.up.isDown) {
-      this.player.setVelocityY(-330);
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(this.keyR)) {
-      console.log("Phaser.Input.Keyboard.JustDown(this.keyR)");
-      this.scene.restart();
-    }
-  }
-
-  collectStar(player, star) {
-    star.disableBody(true, true);
-
-    this.score += 10;
-    this.scoreText.setText(`Score: ${this.score}`);
-
-    if (this.stars.countActive(true) === 0) {
-      //  A new batch of stars to collect
-      this.stars.children.iterate(function (child) {
-        child.enableBody(true, child.x, 0, true, true);
-      });
-    }
-  }
 }
